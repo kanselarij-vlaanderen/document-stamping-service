@@ -5,7 +5,7 @@ async function documentByIdExists (id) {
   PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
 
   ASK {
-      ?agenda a dossier:Stuk ;
+      ?document a dossier:Stuk ;
           mu:uuid ${sparqlEscapeString(id)} .
   }`;
   const results = await query(queryString);
