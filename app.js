@@ -78,7 +78,7 @@ async function sendJob (req, res, next) {
   } else {
     res.status(404).send({
       errors: [{
-        detail: 'No documents found to be stamped'
+        detail: 'No documents found to be stamped. The documents requested to be stamped may already have been stamped.'
       }]
     });
   }
