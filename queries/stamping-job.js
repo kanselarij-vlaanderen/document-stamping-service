@@ -47,7 +47,7 @@ async function updateJobStatus (uri, status) {
   DELETE {
       ${escapedUri} ext:status ?status ;
           ${sparqlEscapeUri(timePred)} ?time .
-   }
+  }
   INSERT {
       ${escapedUri} ext:status ${sparqlEscapeUri(status)} ;
           ${sparqlEscapeUri(timePred)} ${sparqlEscapeDateTime(time)} .
