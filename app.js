@@ -33,7 +33,7 @@ app.post('/agendas/:agenda_id/agendaitems/documents/stamp',
   authorize,
   async (req, res, next) => {
     if (agendaByIdExists(req.params.agenda_id)) {
-      req.documentsToStamp = await getUnstampedDocumentsFromAgenda([req.params.agenda_id]);
+      req.documentsToStamp = await getUnstampedDocumentsFromAgenda(req.params.agenda_id);
       next();
     } else {
       res.status(404).send({
