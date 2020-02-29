@@ -8,8 +8,8 @@ A job-like approach is used to run these operations on the PDF files. See [*The 
 #### docker-compose
 
 ```yml
-document-grouping:
-  image: kanselarij/document-grouping-service
+document-stamping:
+  image: kanselarij/document-stamping-service
   volumes:
     - ./data/files:/share
 ```
