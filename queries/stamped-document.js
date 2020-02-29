@@ -1,4 +1,4 @@
-import { sparqlEscapeString, sparqlEscapeUri, query } from 'mu';
+import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
@@ -97,7 +97,35 @@ function documentResultToHierarchicalObject (r) {
     physFile: r.physFile
   };
 }
+
+async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
+  const queryString = `
+  PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+  PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
+  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+  PREFIX prov: <http://www.w3.org/ns/prov#>
+
+  DELETE {
+      ?document ext:file ?oldFile .
+  }
+  INSERT {
+      ?document ext:file ?newFile .
+      ?newFile prov:wasDerivedFrom ?oldFile .
+  }
+  WHERE {
+      ?document a dossier:Stuk ;
+          ext:file ?oldFile .
+      ?oldFile a nfo:FileDataObject .
+      ?newFile a nfo:FileDataObject .
+  }`.split('?document').join(sparqlEscapeUri(sourceDocumentUri)) // replaceAll
+    .split('?oldFile').join(sparqlEscapeUri(sourceFileUri))
+    .split('?newFile').join(sparqlEscapeUri(derivedFileUri));
+  const result = await update(queryString);
+  return result;
+}
+
 export {
   getUnstampedDocumentsFromIds,
-  getUnstampedDocumentsFromAgenda
+  getUnstampedDocumentsFromAgenda,
+  updateDocumentWithFile
 };

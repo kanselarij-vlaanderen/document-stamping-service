@@ -1,12 +1,12 @@
 import { app, errorHandler } from 'mu';
 
 import { AUTHORIZED_USERGROUPS } from './config';
-import { getUnstampedDocumentsFromIds, getUnstampedDocumentsFromAgenda } from './queries/stamped-document';
+import { getUnstampedDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
 import {
   createJob, updateJobStatus, SUCCESS, FAIL,
-  attachSourceFilesToJob, attachResultFilesToJob, attachDerivedFileToSourceFile
+  attachFilesToJob
 } from './queries/stamping-job';
-import { documentByIdExists } from './queries/document';
+import { documentByIdExists, replaceAttachedFiles } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
 import { authorizedSession } from './lib/session';
 import { stampMuFile } from './lib/stamp';
@@ -86,21 +86,11 @@ async function sendJob (req, res, next) {
 
 async function runJob (req, res, next) {
   try {
-    const stampingPromises = req.documentsToStamp.map(async function (doc) {
-      return {
-        sourceFile: doc.file.uri,
-        stampedFile: (await stampMuFile(doc.file.name, doc.physFile, doc.name)).uri
-      };
-    });
-    const stampData = await Promise.all(stampingPromises);
-    await attachSourceFilesToJob(res.job.uri, stampData.map((d) => d.sourceFile));
-    await attachResultFilesToJob(res.job.uri, stampData.map((d) => d.stampedFile));
-    await attachDerivedFileToSourceFile(stampData.map(function (d) {
-      return {
-        sourceFileUri: d.sourceFile,
-        derivedFileUri: d.stampedFile
-      };
-    }));
+    for (const doc of req.documentsToStamp) {
+      const stampedFile = await stampMuFile(doc.file.name, doc.physFile, doc.name);
+      await attachFilesToJob(res.job.uri, doc.file.uri, stampedFile.uri);
+      await updateDocumentWithFile(doc.uri, doc.file.uri, stampedFile.uri);
+    }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
     console.log(e);

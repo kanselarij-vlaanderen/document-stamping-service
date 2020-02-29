@@ -60,58 +60,28 @@ async function updateJobStatus (uri, status) {
   await update(queryString);
 }
 
-async function attachSourceFilesToJob (job, results) {
-  return attachFilesToJob(job, results, 'http://www.w3.org/ns/prov#used');
-}
-
-async function attachResultFilesToJob (job, results) {
-  return attachFilesToJob(job, results, 'http://www.w3.org/ns/prov#generated');
-}
-
-async function attachFilesToJob (job, files, predicate) {
+async function attachFilesToJob (job, sourceFile, resultFile) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+  PREFIX prov: <http://www.w3.org/ns/prov#>
 
   INSERT {
-      ${sparqlEscapeUri(job)} ${sparqlEscapeUri(predicate)} ?files .
+      ${sparqlEscapeUri(job)} prov:used ${sparqlEscapeUri(sourceFile)} .
+      ${sparqlEscapeUri(job)} prov:generated ${sparqlEscapeUri(resultFile)} .
   }
   WHERE {
       ${sparqlEscapeUri(job)} a ext:FileStampingJob .
-      VALUES ?files {
-          ${files.map(sparqlEscapeUri).join('\n          ')}
-      }
+      ${sparqlEscapeUri(sourceFile)} a nfo:FileDataObject .
+      ${sparqlEscapeUri(resultFile)} a nfo:FileDataObject .
   }`;
   await update(queryString);
   return job;
 }
 
-async function attachDerivedFileToSourceFile (provenanceFileSets) {
-  // provenanceFileSets is an array of objects each having 'sourceFileUri' and 'derivedFileUri'
-  const queryString = `
-  PREFIX prov: <http://www.w3.org/ns/prov#>
-  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
-
-  INSERT {
-      ?source prov:wasDerivedFrom ?result .
-  }
-  WHERE {
-      ?source a nfo:FileDataObject  .
-      ?result a nfo:FileDataObject  .
-      VALUES (?source ?result) {
-          ${provenanceFileSets
-              .map((s) => `(${sparqlEscapeUri(s.sourceFileUri)} ${sparqlEscapeUri(s.derivedFileUri)})`)
-              .join('\n          ')}
-      }
-  }`;
-  await update(queryString);
-  return provenanceFileSets;
-}
-
 export {
   createJob,
   updateJobStatus,
-  attachSourceFilesToJob,
-  attachResultFilesToJob,
-  attachDerivedFileToSourceFile,
+  attachFilesToJob,
   RUNNING, SUCCESS, FAIL
 };
