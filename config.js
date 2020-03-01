@@ -1,10 +1,12 @@
-const AUTHORIZED_USERGROUPS = ['o-kanselarij-all'];
-const RESOURCE_BASE = 'http://mu.semte.ch/services/file-bundling-service';
+const RESOURCE_BASE = 'http://mu.semte.ch/services/document-stamping-service';
 const MU_APPLICATION_FILE_STORAGE_PATH = '';
 const STORAGE_PATH = `/share/${MU_APPLICATION_FILE_STORAGE_PATH}`;
+const JSONAPI_JOB_TYPE = 'document-stamping-jobs';
+const RDF_JOB_TYPE = 'http://mu.semte.ch/vocabularies/ext/FileStampingJob';
 
 export {
   RESOURCE_BASE,
   STORAGE_PATH,
-  AUTHORIZED_USERGROUPS
+  JSONAPI_JOB_TYPE,
+  RDF_JOB_TYPE
 };

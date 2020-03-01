@@ -1,18 +1,16 @@
 import { app, errorHandler } from 'mu';
 
-import { AUTHORIZED_USERGROUPS } from './config';
+import { JSONAPI_JOB_TYPE } from './config';
 import { getUnstampedDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
 import {
-  createJob, updateJobStatus, SUCCESS, FAIL,
+  jobExists, createJob as createStampingJob, updateJobStatus, SUCCESS, FAIL,
   attachFilesToJob
 } from './queries/stamping-job';
-import { documentByIdExists, replaceAttachedFiles } from './queries/document';
+import { documentByIdExists } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
-import { authorizedSession } from './lib/session';
 import { stampMuFile } from './lib/stamp';
 
 app.post('/documents/:document_id/stamp',
-  authorize,
   async (req, res, next) => {
     if (documentByIdExists(req.params.document_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromIds([req.params.document_id]);
@@ -25,12 +23,13 @@ app.post('/documents/:document_id/stamp',
       });
     }
   },
+  createJob,
+  authorize,
   sendJob,
   runJob
 );
 
 app.post('/agendas/:agenda_id/agendaitems/documents/stamp',
-  authorize,
   async (req, res, next) => {
     if (agendaByIdExists(req.params.agenda_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromAgenda(req.params.agenda_id);
@@ -43,12 +42,27 @@ app.post('/agendas/:agenda_id/agendaitems/documents/stamp',
       });
     }
   },
+  createJob,
+  authorize,
   sendJob,
   runJob
 );
 
-function authorize (req, res, next) {
-  const authorized = authorizedSession(JSON.parse(req.get('MU-AUTH-ALLOWED-GROUPS')), AUTHORIZED_USERGROUPS);
+async function createJob (req, res, next) {
+  if (req.documentsToStamp.length > 0) {
+    res.job = await createStampingJob();
+    next();
+  } else {
+    res.status(404).send({
+      errors: [{
+        detail: 'No documents found to be stamped. The documents requested to be stamped may already have been stamped.'
+      }]
+    });
+  }
+}
+
+async function authorize (req, res, next) {
+  const authorized = await jobExists(res.job.uri);
   if (authorized) {
     next();
   } else {
@@ -61,27 +75,18 @@ function authorize (req, res, next) {
 }
 
 async function sendJob (req, res, next) {
-  if (req.documentsToStamp.length > 0) {
-    res.job = await createJob();
-    const payload = {};
-    payload.data = {
-      type: 'document-stamping-jobs',
-      id: res.job.id,
-      attributes: {
-        uri: res.job.uri,
-        status: res.job.status,
-        created: res.job.created
-      }
-    };
-    res.send(payload);
-    next();
-  } else {
-    res.status(404).send({
-      errors: [{
-        detail: 'No documents found to be stamped. The documents requested to be stamped may already have been stamped.'
-      }]
-    });
-  }
+  const payload = {};
+  payload.data = {
+    type: JSONAPI_JOB_TYPE,
+    id: res.job.id,
+    attributes: {
+      uri: res.job.uri,
+      status: res.job.status,
+      created: res.job.created
+    }
+  };
+  res.send(payload);
+  next();
 }
 
 async function runJob (req, res, next) {

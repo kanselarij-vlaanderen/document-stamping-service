@@ -1,5 +1,8 @@
-import { update, uuid as generateUuid, sparqlEscapeString, sparqlEscapeUri, sparqlEscapeDateTime } from 'mu';
-import { RESOURCE_BASE } from '../config';
+import {
+  query, update, uuid as generateUuid,
+  sparqlEscapeString, sparqlEscapeUri, sparqlEscapeDateTime
+} from 'mu';
+import { RESOURCE_BASE, RDF_JOB_TYPE, JSONAPI_JOB_TYPE } from '../config';
 // import { parseSparqlResults } from './util';
 
 // const SCHEDULED = 'scheduled';
@@ -7,10 +10,21 @@ const RUNNING = 'http://vocab.deri.ie/cogs#Running';
 const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 const FAIL = 'http://vocab.deri.ie/cogs#Fail';
 
+async function jobExists (uri) {
+  const queryString = `
+  PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+  ASK {
+      ${sparqlEscapeUri(uri)} a ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
+          mu:uuid ?uuid .
+  }`;
+  const results = await query(queryString);
+  return results.boolean;
+}
+
 async function createJob () {
   const uuid = generateUuid();
   const job = {
-    uri: RESOURCE_BASE + `/document-stamping-jobs/${uuid}`,
+    uri: RESOURCE_BASE + `/${JSONAPI_JOB_TYPE}/${uuid}`,
     id: uuid,
     status: RUNNING,
     created: new Date()
@@ -22,7 +36,7 @@ async function createJob () {
   PREFIX cogs: <http://vocab.deri.ie/cogs#>
 
   INSERT DATA {
-      ${sparqlEscapeUri(job.uri)} a cogs:Job , ext:FileStampingJob ;
+      ${sparqlEscapeUri(job.uri)} a cogs:Job , ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
           mu:uuid ${sparqlEscapeString(job.id)} ;
           ext:status ${sparqlEscapeString(job.status)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
@@ -53,7 +67,7 @@ async function updateJobStatus (uri, status) {
           ${sparqlEscapeUri(timePred)} ${sparqlEscapeDateTime(time)} .
   }
   WHERE {
-      ${escapedUri} a ext:FileStampingJob .
+      ${escapedUri} a ${sparqlEscapeUri(RDF_JOB_TYPE)} .
       OPTIONAL { ${escapedUri} ext:status ?status }
       OPTIONAL { ${escapedUri} ${sparqlEscapeUri(timePred)} ?time }
   }`;
@@ -71,7 +85,7 @@ async function attachFilesToJob (job, sourceFile, resultFile) {
       ${sparqlEscapeUri(job)} prov:generated ${sparqlEscapeUri(resultFile)} .
   }
   WHERE {
-      ${sparqlEscapeUri(job)} a ext:FileStampingJob .
+      ${sparqlEscapeUri(job)} a ${sparqlEscapeUri(RDF_JOB_TYPE)} .
       ${sparqlEscapeUri(sourceFile)} a nfo:FileDataObject .
       ${sparqlEscapeUri(resultFile)} a nfo:FileDataObject .
   }`;
@@ -80,6 +94,7 @@ async function attachFilesToJob (job, sourceFile, resultFile) {
 }
 
 export {
+  jobExists,
   createJob,
   updateJobStatus,
   attachFilesToJob,
