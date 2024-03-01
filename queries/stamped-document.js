@@ -17,7 +17,7 @@ const unstampedDocumentsWhere = `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
-      ext:file ?file .
+      prov:value ?file .
 
   ${notStampedFilter}
 
@@ -35,7 +35,7 @@ const getUnstampedDocumentsFromIds = async (documentIds) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-PREFIX besluitvorming: <http://data.vlaanderen.be/ns/besluitvorming#>
+PREFIX besluitvorming: <https://data.vlaanderen.be/ns/besluitvorming#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX dbpedia: <http://dbpedia.org/ontology/>
 PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
@@ -59,7 +59,7 @@ const getUnstampedDocumentsFromAgenda = async (agendaId) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-PREFIX besluitvorming: <http://data.vlaanderen.be/ns/besluitvorming#>
+PREFIX besluitvorming: <https://data.vlaanderen.be/ns/besluitvorming#>
 PREFIX besluit: <http://data.vlaanderen.be/ns/besluit#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX dbpedia: <http://dbpedia.org/ontology/>
@@ -75,7 +75,7 @@ WHERE {
         mu:uuid ${sparqlEscapeString(agendaId)} ;
         dct:hasPart ?agendaitem .
     ?agendaitem a besluit:Agendapunt ;
-        ext:bevatAgendapuntDocumentversie ?document .
+        besluitvorming:geagendeerdStuk ?document .
 
   ${unstampedDocumentsWhere}
 }`;
@@ -106,15 +106,15 @@ async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derived
   PREFIX prov: <http://www.w3.org/ns/prov#>
 
   DELETE {
-      ?document ext:file ?oldFile .
+      ?document prov:value ?oldFile .
   }
   INSERT {
-      ?document ext:file ?newFile .
+      ?document prov:value ?newFile .
       ?newFile prov:wasDerivedFrom ?oldFile .
   }
   WHERE {
       ?document a dossier:Stuk ;
-          ext:file ?oldFile .
+          prov:value ?oldFile .
       ?oldFile a nfo:FileDataObject .
       ?newFile a nfo:FileDataObject .
   }`.split('?document').join(sparqlEscapeUri(sourceDocumentUri)) // replaceAll
