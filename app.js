@@ -10,7 +10,6 @@ import { documentByIdExists } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
 import { stampMuFile } from './lib/stamp';
 import VRDocumentName from './lib/vr-document-name';
-import { chunks } from './queries/util';
 
 app.post('/documents/:document_id/stamp',
   async (req, res, next) => {
@@ -93,18 +92,14 @@ async function sendJob (req, res, next) {
 
 async function runJob (req, res, next) {
   try {
-    const stampedFiles = [];
-    await Promise.all(req.documentsToStamp.map(async (doc) => {
+    for (const doc of req.documentsToStamp) {
       const stampedFile = await stampMuFile(
         doc.file.name,
         doc.physFile,
         new VRDocumentName(doc.name).vrNumberWithSuffix()
       );
-      stampedFiles.push({document: doc, stampedFile});
-    }));
-    for (const chunk of chunks(stampedFiles, 100)) {
-      await attachFilesToJob(res.job.uri, chunk);
-      await updateDocumentWithFile(chunk)
+      await attachFilesToJob(res.job.uri, doc.file.uri, stampedFile.uri);
+      await updateDocumentWithFile(doc.uri, doc.file.uri, stampedFile.uri);
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
