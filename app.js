@@ -12,7 +12,7 @@ import { stampMuFile } from './lib/stamp';
 
 app.post('/documents/:document_id/stamp',
   async (req, res, next) => {
-    if (documentByIdExists(req.params.document_id)) {
+    if (await documentByIdExists(req.params.document_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromIds([req.params.document_id]);
       next();
     } else {
@@ -31,7 +31,7 @@ app.post('/documents/:document_id/stamp',
 
 app.post('/agendas/:agenda_id/agendaitems/documents/stamp',
   async (req, res, next) => {
-    if (agendaByIdExists(req.params.agenda_id)) {
+    if (await agendaByIdExists(req.params.agenda_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromAgenda(req.params.agenda_id);
       next();
     } else {
