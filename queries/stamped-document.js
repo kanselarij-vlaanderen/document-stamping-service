@@ -98,7 +98,7 @@ function documentResultToHierarchicalObject (r) {
   };
 }
 
-async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
+async function updateDocumentWithFile (stampedFiles) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
   PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
@@ -113,13 +113,17 @@ async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derived
       ?newFile prov:wasDerivedFrom ?oldFile .
   }
   WHERE {
-      ?document a dossier:Stuk ;
-          prov:value ?oldFile .
-      ?oldFile a nfo:FileDataObject .
-      ?newFile a nfo:FileDataObject .
-  }`.split('?document').join(sparqlEscapeUri(sourceDocumentUri)) // replaceAll
-    .split('?oldFile').join(sparqlEscapeUri(sourceFileUri))
-    .split('?newFile').join(sparqlEscapeUri(derivedFileUri));
+    VALUES (?document ?oldFile ?newFile) {
+      ${stampedFiles
+        .map(
+          ({ document: doc, stampedFile }) =>
+            `(${sparqlEscapeUri(doc.uri)} ${sparqlEscapeUri(
+              doc.file.uri
+            )} ${sparqlEscapeUri(stampedFile.uri)})`
+        )
+        .join("\n      ")}
+    }
+  }`;
   const result = await update(queryString);
   return result;
 }

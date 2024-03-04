@@ -11,3 +11,16 @@ export const parseSparqlResults = (data) => {
     return obj;
   });
 };
+
+export function chunks(array, chunkSize=100) {
+  if (chunkSize === 0) {
+    throw new Error('Chunk size cannot be zero');
+  }
+
+  const out = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    const chunk = array.slice(i, i + chunkSize);
+    out.push(chunk);
+  }
+  return out;
+}

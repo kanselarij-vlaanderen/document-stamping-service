@@ -74,7 +74,7 @@ async function updateJobStatus (uri, status) {
   await update(queryString);
 }
 
-async function attachFilesToJob (job, sourceFile, resultFile) {
+async function attachFileToJob (job, sourceFile, resultFile) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
   PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
@@ -89,6 +89,28 @@ async function attachFilesToJob (job, sourceFile, resultFile) {
       ${sparqlEscapeUri(sourceFile)} a nfo:FileDataObject .
       ${sparqlEscapeUri(resultFile)} a nfo:FileDataObject .
   }`;
+  await update(queryString);
+  return job;
+}
+
+async function attachFilesToJob (job, stampedFiles) {
+  const queryString = `
+  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+  PREFIX prov: <http://www.w3.org/ns/prov#>
+
+  INSERT DATA {
+      ${stampedFiles
+        .map(
+          ({ document: doc, stampedFile }) =>
+            `${sparqlEscapeUri(job)} prov:used ${sparqlEscapeUri(
+              doc.file.uri
+            )} .\n      ${sparqlEscapeUri(
+              job
+            )} prov:generated ${sparqlEscapeUri(stampedFile.uri)} .`
+        )
+        .join("\n      ")}
+  }
+  `;
   await update(queryString);
   return job;
 }
