@@ -1,20 +1,41 @@
 import { app, errorHandler } from 'mu';
 
 import { JSONAPI_JOB_TYPE } from './config';
-import { getUnstampedDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
+import { getDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
 import {
   jobExists, createJob as createStampingJob, updateJobStatus, SUCCESS, FAIL,
-  attachFilesToJob
+  attachFileToJob
 } from './queries/stamping-job';
 import { documentByIdExists } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
-import { stampMuFile } from './lib/stamp';
+import { stampMuFile, stampFileToBytes } from './lib/stamp';
 import VRDocumentName from './lib/vr-document-name';
+
+app.get("/documents/:document_id/download", async (req, res, next) => {
+  if (await documentByIdExists(req.params.document_id)) {
+    const [ documentToStamp ] = await getDocumentsFromIds([req.params.document_id]);
+    const srcPath = documentToStamp.physFile.replace(/^share:\/\//, "/share/");
+    const documentName = new VRDocumentName(documentToStamp.name);
+    const pdfBytes = await stampFileToBytes(
+      srcPath,
+      documentName.vrNumberWithSuffix()
+    );
+    res.attachment(`${documentName.toString()}.pdf`).send(Buffer.from(pdfBytes));
+  } else {
+    res.status(404).send({
+      errors: [
+        {
+          detail: `Object of type 'documents' with id '${req.params.document_id}' doesn't exist.`,
+        },
+      ],
+    });
+  }
+});
 
 app.post('/documents/:document_id/stamp',
   async (req, res, next) => {
     if (await documentByIdExists(req.params.document_id)) {
-      req.documentsToStamp = await getUnstampedDocumentsFromIds([req.params.document_id]);
+      req.documentsToStamp = await getDocumentsFromIds([req.params.document_id]);
       next();
     } else {
       res.status(404).send({
@@ -98,13 +119,13 @@ async function runJob (req, res, next) {
         doc.physFile,
         new VRDocumentName(doc.name).vrNumberWithSuffix()
       );
-      await attachFilesToJob(res.job.uri, doc.file.uri, stampedFile.uri);
+      await attachFileToJob(res.job.uri, doc.file.uri, stampedFile.uri);
       await updateDocumentWithFile(doc.uri, doc.file.uri, stampedFile.uri);
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
     console.log(e);
-    await updateJobStatus(res.job.uri, FAIL);
+    await updateJobStatus(res.job.uri, FAIL, e.message);
   }
 }
 

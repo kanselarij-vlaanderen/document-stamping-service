@@ -93,22 +93,13 @@ async function attachFileToJob (job, sourceFile, resultFile) {
   return job;
 }
 
-async function attachFilesToJob (job, stampedFiles) {
+async function attachFileToJob (job, sourceFile, resultFile) {
   const queryString = `
-  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
   PREFIX prov: <http://www.w3.org/ns/prov#>
 
   INSERT DATA {
-      ${stampedFiles
-        .map(
-          ({ document: doc, stampedFile }) =>
-            `${sparqlEscapeUri(job)} prov:used ${sparqlEscapeUri(
-              doc.file.uri
-            )} .\n      ${sparqlEscapeUri(
-              job
-            )} prov:generated ${sparqlEscapeUri(stampedFile.uri)} .`
-        )
-        .join("\n      ")}
+    ${sparqlEscapeUri(job)} prov:used ${sparqlEscapeUri(sourceFile)} .
+    ${sparqlEscapeUri(job)} prov:generated ${sparqlEscapeUri(resultFile)} .
   }
   `;
   await update(queryString);
@@ -119,6 +110,6 @@ export {
   jobExists,
   createJob,
   updateJobStatus,
-  attachFilesToJob,
+  attachFileToJob,
   RUNNING, SUCCESS, FAIL
 };
