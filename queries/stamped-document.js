@@ -13,13 +13,11 @@ FILTER NOT EXISTS {
 
 const pdfFilter = 'FILTER(STRSTARTS(?fileFormat, "application/pdf") || ?fileExtension = "pdf")';
 
-const unstampedDocumentsWhere = `
+const documentsWhere = `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
       prov:value ?file .
-
-  ${notStampedFilter}
 
   ?file a nfo:FileDataObject ;
       mu:uuid ?fileId ;
@@ -31,7 +29,7 @@ const unstampedDocumentsWhere = `
   ${pdfFilter}
 `;
 
-const getUnstampedDocumentsFromIds = async (documentIds) => {
+const getDocumentsFromIds = async (documentIds) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -46,7 +44,7 @@ PREFIX prov: <http://www.w3.org/ns/prov#>
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
   VALUES ?documentId {
     ${documentIds.map(sparqlEscapeString).join('\n      ')}
   }
@@ -77,7 +75,7 @@ WHERE {
     ?agendaitem a besluit:Agendapunt ;
         besluitvorming:geagendeerdStuk ?document .
 
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
 }`;
   const result = await query(queryString);
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
@@ -155,7 +153,7 @@ async function updateDocumentsWithFile (stampedFiles) {
 }
 
 export {
-  getUnstampedDocumentsFromIds,
+  getDocumentsFromIds,
   getUnstampedDocumentsFromAgenda,
   updateDocumentWithFile
 };
