@@ -1,13 +1,17 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
+import { RDF_JOB_TYPE } from '../config';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
+const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 
 // TODO: harden this
 const notStampedFilter = `
 FILTER NOT EXISTS {
-  ?otherFile a nfo:FileDataObject .
-  ?file prov:wasDerivedFrom ?otherFile .
+  ?job 
+    a ${sparqlEscapeUri(RDF_JOB_TYPE)};
+    prov:used ?document ;
+    ext:status ${sparqlEscapeUri(SUCCESS)} .
 }
 `;
 
@@ -19,6 +23,8 @@ const documentsWhere = `
       mu:uuid ?documentId ;
       prov:value ?file .
 
+  ${notStampedFilter}
+
   ?file a nfo:FileDataObject ;
       mu:uuid ?fileId ;
       nfo:fileName ?fileName .
@@ -29,7 +35,7 @@ const documentsWhere = `
   ${pdfFilter}
 `;
 
-const getDocumentsFromIds = async (documentIds) => {
+const getUnstampedDocumentsFromIds = async (documentIds) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -40,6 +46,7 @@ PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
 PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
 PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
 
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
@@ -96,6 +103,13 @@ function documentResultToHierarchicalObject (r) {
   };
 }
 
+/**
+ *
+ * @param {string} sourceDocumentUri
+ * @param {string} sourceFileUri 
+ * @param {string} derivedFileUri 
+ * @returns object
+ */
 async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -153,7 +167,7 @@ async function updateDocumentsWithFile (stampedFiles) {
 }
 
 export {
-  getDocumentsFromIds,
+  getUnstampedDocumentsFromIds,
   getUnstampedDocumentsFromAgenda,
   updateDocumentWithFile
 };

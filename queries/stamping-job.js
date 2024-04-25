@@ -93,19 +93,6 @@ async function attachFileToJob (job, sourceFile, resultFile) {
   return job;
 }
 
-async function attachFileToJob (job, sourceFile, resultFile) {
-  const queryString = `
-  PREFIX prov: <http://www.w3.org/ns/prov#>
-
-  INSERT DATA {
-    ${sparqlEscapeUri(job)} prov:used ${sparqlEscapeUri(sourceFile)} .
-    ${sparqlEscapeUri(job)} prov:generated ${sparqlEscapeUri(resultFile)} .
-  }
-  `;
-  await update(queryString);
-  return job;
-}
-
 export {
   jobExists,
   createJob,

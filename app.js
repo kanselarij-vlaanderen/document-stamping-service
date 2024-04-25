@@ -1,19 +1,26 @@
 import { app, errorHandler } from 'mu';
 
 import { JSONAPI_JOB_TYPE } from './config';
-import { getDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
 import {
-  jobExists, createJob as createStampingJob, updateJobStatus, SUCCESS, FAIL,
-  attachFileToJob
-} from './queries/stamping-job';
+  getUnstampedDocumentsFromIds,
+  getUnstampedDocumentsFromAgenda,
+} from "./queries/stamped-document";
+import {
+  jobExists,
+  createJob as createStampingJob,
+  updateJobStatus,
+  SUCCESS,
+  FAIL,
+  attachFileToJob,
+} from "./queries/stamping-job";
 import { documentByIdExists } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
-import { stampMuFile, stampFileToBytes } from './lib/stamp';
+import { stampFileToBytes, stampFile } from "./lib/stamp";
 import VRDocumentName from './lib/vr-document-name';
 
 app.get("/documents/:document_id/download", async (req, res, next) => {
   if (await documentByIdExists(req.params.document_id)) {
-    const [ documentToStamp ] = await getDocumentsFromIds([req.params.document_id]);
+    const [ documentToStamp ] = await getUnstampedDocumentsFromIds([req.params.document_id]);
     const srcPath = documentToStamp.physFile.replace(/^share:\/\//, "/share/");
     const documentName = new VRDocumentName(documentToStamp.name);
     const pdfBytes = await stampFileToBytes(
@@ -35,7 +42,7 @@ app.get("/documents/:document_id/download", async (req, res, next) => {
 app.post('/documents/:document_id/stamp',
   async (req, res, next) => {
     if (await documentByIdExists(req.params.document_id)) {
-      req.documentsToStamp = await getDocumentsFromIds([req.params.document_id]);
+      req.documentsToStamp = await getUnstampedDocumentsFromIds([req.params.document_id]);
       next();
     } else {
       res.status(404).send({
@@ -114,13 +121,12 @@ async function sendJob (req, res, next) {
 async function runJob (req, res, next) {
   try {
     for (const doc of req.documentsToStamp) {
-      const stampedFile = await stampMuFile(
-        doc.file.name,
+      await stampFile(
         doc.physFile,
-        new VRDocumentName(doc.name).vrNumberWithSuffix()
+        new VRDocumentName(doc.name).vrNumberWithSuffix(),
+        doc.physFile
       );
-      await attachFileToJob(res.job.uri, doc.file.uri, stampedFile.uri);
-      await updateDocumentWithFile(doc.uri, doc.file.uri, stampedFile.uri);
+      await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
