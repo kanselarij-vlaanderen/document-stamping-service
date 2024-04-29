@@ -10,7 +10,7 @@ const notStampedFilter = `
 FILTER NOT EXISTS {
   ?job 
     a ${sparqlEscapeUri(RDF_JOB_TYPE)};
-    prov:used ?document ;
+    prov:used ?file ;
     ext:status ${sparqlEscapeUri(SUCCESS)} .
 }
 `;
