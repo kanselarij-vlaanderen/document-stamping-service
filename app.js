@@ -121,10 +121,11 @@ async function sendJob (req, res, next) {
 async function runJob (req, res, next) {
   try {
     for (const doc of req.documentsToStamp) {
+      const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
       await stampFile(
-        doc.physFile,
+        filePath,
         new VRDocumentName(doc.name).vrNumberWithSuffix(),
-        doc.physFile
+        filePath
       );
       await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
     }
