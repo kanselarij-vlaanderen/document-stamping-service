@@ -1,23 +1,27 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
+import { RDF_JOB_TYPE } from '../config';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
+const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 
 // TODO: harden this
 const notStampedFilter = `
 FILTER NOT EXISTS {
-  ?otherFile a nfo:FileDataObject .
-  ?file prov:wasDerivedFrom ?otherFile .
+  ?job 
+    a ${sparqlEscapeUri(RDF_JOB_TYPE)};
+    prov:used ?file ;
+    ext:status ${sparqlEscapeUri(SUCCESS)} .
 }
 `;
 
 const pdfFilter = 'FILTER(STRSTARTS(?fileFormat, "application/pdf") || ?fileExtension = "pdf")';
 
-const unstampedDocumentsWhere = `
+const documentsWhere = `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
-      ext:file ?file .
+      prov:value ?file .
 
   ${notStampedFilter}
 
@@ -35,18 +39,19 @@ const getUnstampedDocumentsFromIds = async (documentIds) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-PREFIX besluitvorming: <http://data.vlaanderen.be/ns/besluitvorming#>
+PREFIX besluitvorming: <https://data.vlaanderen.be/ns/besluitvorming#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX dbpedia: <http://dbpedia.org/ontology/>
 PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
 PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
 PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
 
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
   VALUES ?documentId {
     ${documentIds.map(sparqlEscapeString).join('\n      ')}
   }
@@ -59,7 +64,7 @@ const getUnstampedDocumentsFromAgenda = async (agendaId) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-PREFIX besluitvorming: <http://data.vlaanderen.be/ns/besluitvorming#>
+PREFIX besluitvorming: <https://data.vlaanderen.be/ns/besluitvorming#>
 PREFIX besluit: <http://data.vlaanderen.be/ns/besluit#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX dbpedia: <http://dbpedia.org/ontology/>
@@ -75,9 +80,9 @@ WHERE {
         mu:uuid ${sparqlEscapeString(agendaId)} ;
         dct:hasPart ?agendaitem .
     ?agendaitem a besluit:Agendapunt ;
-        ext:bevatAgendapuntDocumentversie ?document .
+        besluitvorming:geagendeerdStuk ?document .
 
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
 }`;
   const result = await query(queryString);
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
@@ -98,6 +103,13 @@ function documentResultToHierarchicalObject (r) {
   };
 }
 
+/**
+ *
+ * @param {string} sourceDocumentUri
+ * @param {string} sourceFileUri 
+ * @param {string} derivedFileUri 
+ * @returns object
+ */
 async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -120,6 +132,36 @@ async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derived
   }`.split('?document').join(sparqlEscapeUri(sourceDocumentUri)) // replaceAll
     .split('?oldFile').join(sparqlEscapeUri(sourceFileUri))
     .split('?newFile').join(sparqlEscapeUri(derivedFileUri));
+  const result = await update(queryString);
+  return result;
+}
+
+async function updateDocumentsWithFile (stampedFiles) {
+  const queryString = `
+  PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+  PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
+  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+  PREFIX prov: <http://www.w3.org/ns/prov#>
+
+  DELETE {
+      ?document prov:value ?oldFile .
+  }
+  INSERT {
+      ?document prov:value ?newFile .
+      ?newFile prov:wasDerivedFrom ?oldFile .
+  }
+  WHERE {
+    VALUES (?document ?oldFile ?newFile) {
+      ${stampedFiles
+        .map(
+          ({ document: doc, stampedFile }) =>
+            `(${sparqlEscapeUri(doc.uri)} ${sparqlEscapeUri(
+              doc.file.uri
+            )} ${sparqlEscapeUri(stampedFile.uri)})`
+        )
+        .join("\n      ")}
+    }
+  }`;
   const result = await update(queryString);
   return result;
 }

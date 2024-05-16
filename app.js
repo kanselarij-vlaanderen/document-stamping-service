@@ -1,18 +1,50 @@
 import { app, errorHandler } from 'mu';
+import bodyParser from 'body-parser';
 
 import { JSONAPI_JOB_TYPE } from './config';
-import { getUnstampedDocumentsFromIds, getUnstampedDocumentsFromAgenda, updateDocumentWithFile } from './queries/stamped-document';
 import {
-  jobExists, createJob as createStampingJob, updateJobStatus, SUCCESS, FAIL,
-  attachFilesToJob
-} from './queries/stamping-job';
+  getUnstampedDocumentsFromIds,
+  getUnstampedDocumentsFromAgenda,
+} from "./queries/stamped-document";
+import {
+  jobExists,
+  createJob as createStampingJob,
+  updateJobStatus,
+  SUCCESS,
+  FAIL,
+  attachFileToJob,
+} from "./queries/stamping-job";
 import { documentByIdExists } from './queries/document';
 import { agendaByIdExists } from './queries/agenda';
-import { stampMuFile } from './lib/stamp';
+import { stampFileToBytes, stampFile } from "./lib/stamp";
+import VRDocumentName from './lib/vr-document-name';
+
+app.use(bodyParser.json());
+
+app.get("/documents/:document_id/download", async (req, res, next) => {
+  if (await documentByIdExists(req.params.document_id)) {
+    const [ documentToStamp ] = await getUnstampedDocumentsFromIds([req.params.document_id]);
+    const srcPath = documentToStamp.physFile.replace(/^share:\/\//, "/share/");
+    const documentName = new VRDocumentName(documentToStamp.name);
+    const pdfBytes = await stampFileToBytes(
+      srcPath,
+      documentName.vrNumberWithSuffix()
+    );
+    res.attachment(`${documentName.toString()}.pdf`).send(Buffer.from(pdfBytes));
+  } else {
+    res.status(404).send({
+      errors: [
+        {
+          detail: `Object of type 'documents' with id '${req.params.document_id}' doesn't exist.`,
+        },
+      ],
+    });
+  }
+});
 
 app.post('/documents/:document_id/stamp',
   async (req, res, next) => {
-    if (documentByIdExists(req.params.document_id)) {
+    if (await documentByIdExists(req.params.document_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromIds([req.params.document_id]);
       next();
     } else {
@@ -31,7 +63,7 @@ app.post('/documents/:document_id/stamp',
 
 app.post('/agendas/:agenda_id/agendaitems/documents/stamp',
   async (req, res, next) => {
-    if (agendaByIdExists(req.params.agenda_id)) {
+    if (await agendaByIdExists(req.params.agenda_id)) {
       req.documentsToStamp = await getUnstampedDocumentsFromAgenda(req.params.agenda_id);
       next();
     } else {
@@ -53,11 +85,9 @@ async function createJob (req, res, next) {
     res.job = await createStampingJob();
     next();
   } else {
-    res.status(404).send({
-      errors: [{
-        detail: 'No documents found to be stamped. The documents requested to be stamped may already have been stamped.'
-      }]
-    });
+    res.send(JSON.stringify({
+      message: 'Er zijn geen nieuwe documenten om te stempelen voor deze agenda.'
+    }));
   }
 }
 
@@ -75,31 +105,44 @@ async function authorize (req, res, next) {
 }
 
 async function sendJob (req, res, next) {
-  const payload = {};
-  payload.data = {
-    type: JSONAPI_JOB_TYPE,
-    id: res.job.id,
-    attributes: {
-      uri: res.job.uri,
-      status: res.job.status,
-      created: res.job.created
+  let payload = {};
+  let message;
+  if (req.documentsToStamp.length === 1) {
+    message = '1 nieuw document wordt gestempeld';
+  } else {
+    message = `${req.documentsToStamp.length} nieuwe documenten worden gestempeld.`;
+  }
+  payload = {
+    message: message,
+    job: {
+      type: JSONAPI_JOB_TYPE,
+      id: res.job.id,
+      attributes: {
+        uri: res.job.uri,
+        status: res.job.status,
+        created: res.job.created
+      }
     }
   };
-  res.send(payload);
+  res.send(JSON.stringify(payload));
   next();
 }
 
 async function runJob (req, res, next) {
   try {
     for (const doc of req.documentsToStamp) {
-      const stampedFile = await stampMuFile(doc.file.name, doc.physFile, doc.name);
-      await attachFilesToJob(res.job.uri, doc.file.uri, stampedFile.uri);
-      await updateDocumentWithFile(doc.uri, doc.file.uri, stampedFile.uri);
+      const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
+      await stampFile(
+        filePath,
+        new VRDocumentName(doc.name).vrNumberWithSuffix(),
+        filePath
+      );
+      await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
     console.log(e);
-    await updateJobStatus(res.job.uri, FAIL);
+    await updateJobStatus(res.job.uri, FAIL, e.message);
   }
 }
 

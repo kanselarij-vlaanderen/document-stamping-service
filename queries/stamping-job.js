@@ -74,7 +74,7 @@ async function updateJobStatus (uri, status) {
   await update(queryString);
 }
 
-async function attachFilesToJob (job, sourceFile, resultFile) {
+async function attachFileToJob (job, sourceFile, resultFile) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
   PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
@@ -97,6 +97,6 @@ export {
   jobExists,
   createJob,
   updateJobStatus,
-  attachFilesToJob,
+  attachFileToJob,
   RUNNING, SUCCESS, FAIL
 };

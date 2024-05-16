@@ -2,7 +2,8 @@ import { query, sparqlEscapeString } from 'mu';
 
 async function agendaByIdExists (id) {
   const queryString = `
-  PREFIX besluitvorming: <http://data.vlaanderen.be/ns/besluitvorming#>
+  PREFIX besluitvorming: <https://data.vlaanderen.be/ns/besluitvorming#>
+  PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 
   ASK {
       ?agenda a besluitvorming:Agenda ;
