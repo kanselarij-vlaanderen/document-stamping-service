@@ -1,19 +1,23 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
+import { RDF_JOB_TYPE } from '../config';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
+const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 
 // TODO: harden this
 const notStampedFilter = `
 FILTER NOT EXISTS {
-  ?otherFile a nfo:FileDataObject .
-  ?file prov:wasDerivedFrom ?otherFile .
+  ?job 
+    a ${sparqlEscapeUri(RDF_JOB_TYPE)};
+    prov:used ?file ;
+    ext:status ${sparqlEscapeUri(SUCCESS)} .
 }
 `;
 
 const pdfFilter = 'FILTER(STRSTARTS(?fileFormat, "application/pdf") || ?fileExtension = "pdf")';
 
-const unstampedDocumentsWhere = `
+const documentsWhere = `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
@@ -42,11 +46,12 @@ PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
 PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
 PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
 
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
   VALUES ?documentId {
     ${documentIds.map(sparqlEscapeString).join('\n      ')}
   }
@@ -77,7 +82,7 @@ WHERE {
     ?agendaitem a besluit:Agendapunt ;
         besluitvorming:geagendeerdStuk ?document .
 
-  ${unstampedDocumentsWhere}
+  ${documentsWhere}
 }`;
   const result = await query(queryString);
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
@@ -98,6 +103,13 @@ function documentResultToHierarchicalObject (r) {
   };
 }
 
+/**
+ *
+ * @param {string} sourceDocumentUri
+ * @param {string} sourceFileUri 
+ * @param {string} derivedFileUri 
+ * @returns object
+ */
 async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
