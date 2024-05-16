@@ -1,6 +1,6 @@
 {
-  "name": "document-grouping-service",
-  "version": "1.0.0",
+  "name": "document-stamping-service",
+  "version": "1.0.1",
   "description": "",
   "main": "app.js",
   "scripts": {
