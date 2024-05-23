@@ -5,7 +5,6 @@ import { RDF_JOB_TYPE } from '../config';
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
 const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 
-// TODO: harden this
 const notStampedFilter = `
 FILTER NOT EXISTS {
   ?job 
@@ -17,13 +16,13 @@ FILTER NOT EXISTS {
 
 const pdfFilter = 'FILTER(STRSTARTS(?fileFormat, "application/pdf") || ?fileExtension = "pdf")';
 
-const documentsWhere = `
+const documentsWhere = (unstamped) => `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
       prov:value ?file .
 
-  ${notStampedFilter}
+  ${unstamped ? notStampedFilter : ""}
 
   ?file a nfo:FileDataObject ;
       mu:uuid ?fileId ;
@@ -35,7 +34,7 @@ const documentsWhere = `
   ${pdfFilter}
 `;
 
-const getUnstampedDocumentsFromIds = async (documentIds) => {
+const getDocumentsFromIds = async (documentIds, unstamped) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -51,7 +50,7 @@ PREFIX cogs: <http://vocab.deri.ie/cogs#>
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-  ${documentsWhere}
+  ${documentsWhere(unstamped)}
   VALUES ?documentId {
     ${documentIds.map(sparqlEscapeString).join('\n      ')}
   }
@@ -60,7 +59,7 @@ WHERE {
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
 };
 
-const getUnstampedDocumentsFromAgenda = async (agendaId) => {
+const getDocumentsFromAgenda = async (agendaId, unstamped) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -82,7 +81,7 @@ WHERE {
     ?agendaitem a besluit:Agendapunt ;
         besluitvorming:geagendeerdStuk ?document .
 
-  ${documentsWhere}
+  ${documentsWhere(unstamped)}
 }`;
   const result = await query(queryString);
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
@@ -167,7 +166,7 @@ async function updateDocumentsWithFile (stampedFiles) {
 }
 
 export {
-  getUnstampedDocumentsFromIds,
-  getUnstampedDocumentsFromAgenda,
+  getDocumentsFromIds,
+  getDocumentsFromAgenda,
   updateDocumentWithFile
 };
