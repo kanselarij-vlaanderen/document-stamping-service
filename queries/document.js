@@ -1,6 +1,6 @@
 import { query, sparqlEscapeString, update } from 'mu';
 
-async function documentByIdExists (id) {
+async function documentByIdExists(id) {
   const queryString = `
   PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -13,7 +13,7 @@ async function documentByIdExists (id) {
   return results.boolean;
 }
 
-async function documentsByIdExist (ids) {
+async function documentsByIdExist(ids) {
   const queryString = `
   PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>

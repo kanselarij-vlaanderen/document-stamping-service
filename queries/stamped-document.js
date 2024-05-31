@@ -20,7 +20,9 @@ const documentsWhere = (unstamped) => `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
-      prov:value ?file .
+      prov:value ?sourceFile .
+    OPTIONAL { ?document prov:value/^prov:hadPrimarySource ?derivedFile .}
+    BIND(COALESCE(?derivedFile, ?sourceFile) AS ?file)
 
   ${unstamped ? notStampedFilter : ""}
 
@@ -34,6 +36,8 @@ const documentsWhere = (unstamped) => `
   ${pdfFilter}
 `;
 
+// "documentIds" is always the id of a piece, even if we have derived pdf
+// we return only pdf's files (source or derived)
 const getDocumentsFromIds = async (documentIds, unstamped) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -59,6 +63,7 @@ WHERE {
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
 };
 
+// we return only pdf's files (source or derived)
 const getDocumentsFromAgenda = async (agendaId, unstamped) => {
   const queryString = `
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -101,40 +106,8 @@ function documentResultToHierarchicalObject (r) {
     physFile: r.physFile
   };
 }
-
-/**
- *
- * @param {string} sourceDocumentUri
- * @param {string} sourceFileUri 
- * @param {string} derivedFileUri 
- * @returns object
- */
-async function updateDocumentWithFile (sourceDocumentUri, sourceFileUri, derivedFileUri) {
-  const queryString = `
-  PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-  PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
-  PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
-  PREFIX prov: <http://www.w3.org/ns/prov#>
-
-  DELETE {
-      ?document ext:file ?oldFile .
-  }
-  INSERT {
-      ?document ext:file ?newFile .
-      ?newFile prov:wasDerivedFrom ?oldFile .
-  }
-  WHERE {
-      ?document a dossier:Stuk ;
-          ext:file ?oldFile .
-      ?oldFile a nfo:FileDataObject .
-      ?newFile a nfo:FileDataObject .
-  }`.split('?document').join(sparqlEscapeUri(sourceDocumentUri)) // replaceAll
-    .split('?oldFile').join(sparqlEscapeUri(sourceFileUri))
-    .split('?newFile').join(sparqlEscapeUri(derivedFileUri));
-  const result = await update(queryString);
-  return result;
-}
-
+// unused method, would update if a new logical file was created
+// however, we are replacing the fysical file and updating some metadata
 async function updateDocumentsWithFile (stampedFiles) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
@@ -167,6 +140,5 @@ async function updateDocumentsWithFile (stampedFiles) {
 
 export {
   getDocumentsFromIds,
-  getDocumentsFromAgenda,
-  updateDocumentWithFile
+  getDocumentsFromAgenda
 };

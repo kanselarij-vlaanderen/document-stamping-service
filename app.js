@@ -18,9 +18,11 @@ import { addStampToResource, documentByIdExists, documentsByIdExist } from "./qu
 import { agendaByIdExists } from "./queries/agenda";
 import { stampFileToBytes, stampFile } from "./lib/stamp";
 import VRDocumentName from './lib/vr-document-name';
+import { updateFileMetaData } from './queries/file';
 
 app.use(bodyParser.json());
 
+// TODO unused endpoint. this would stamp documents on download
 app.get("/documents/:document_id/download", async (req, res, next) => {
   if (await documentByIdExists(req.params.document_id)) {
     const [documentToStamp] = await getDocumentsFromIds([
@@ -46,6 +48,7 @@ app.get("/documents/:document_id/download", async (req, res, next) => {
   }
 });
 
+// TODO unused endpoint
 app.post(
   "/documents/:document_id/stamp",
   async (req, res, next) => {
@@ -109,7 +112,7 @@ app.post(
   "/agendas/:agenda_id/agendaitems/documents/stamp",
   async (req, res, next) => {
     if (await agendaByIdExists(req.params.agenda_id)) {
-      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id);
+      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, true);
       next();
     } else {
       res.status(404).send({
@@ -181,7 +184,7 @@ async function sendJob(req, res, next) {
   next();
 }
 
-async function runJob (req, res, next) {
+async function runJob(req, res, next) {
   try {
     for (const doc of req.documentsToStamp) {
       const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
@@ -191,6 +194,7 @@ async function runJob (req, res, next) {
         stampContent,
         filePath
       );
+      await updateFileMetaData(doc.file.uri, filePath);
       await addStampToResource(doc.id, stampContent);
       await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
     }
