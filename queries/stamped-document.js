@@ -80,11 +80,27 @@ PREFIX prov: <http://www.w3.org/ns/prov#>
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-    ?agenda a besluitvorming:Agenda ;
-        mu:uuid ${sparqlEscapeString(agendaId)} ;
-        dct:hasPart ?agendaitem .
-    ?agendaitem a besluit:Agendapunt ;
-        besluitvorming:geagendeerdStuk ?document .
+  {
+    ?agenda 
+      a besluitvorming:Agenda ;
+      mu:uuid ${sparqlEscapeString(agendaId)} ;
+      dct:hasPart ?agendaitem .
+    ?agendaitem 
+      a besluit:Agendapunt ;
+      besluitvorming:geagendeerdStuk ?document .
+  }
+  UNION
+  {
+    ?agenda 
+      a besluitvorming:Agenda ;
+      mu:uuid ${sparqlEscapeString(agendaId)} ;
+      dct:hasPart ?agendaitem .
+    ?agendaitem 
+      a besluit:Agendapunt ;
+      ^besluitvorming:genereertAgendapunt
+        /besluitvorming:vindtPlaatsTijdens
+        /ext:heeftBekrachtiging ?document .
+  }
 
   ${documentsWhere(unstamped)}
 }`;
