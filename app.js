@@ -19,6 +19,7 @@ import { agendaByIdExists } from "./queries/agenda";
 import { stampFileToBytes, stampFile } from "./lib/stamp";
 import VRDocumentName from './lib/vr-document-name';
 import { updateFileMetaData } from './queries/file';
+import { fetchCurrentUser as fetchCurrentUserUtil } from './lib/fetch-current-user'
 
 app.use(bodyParser.json());
 
@@ -51,6 +52,7 @@ app.get("/documents/:document_id/download", async (req, res, next) => {
 // TODO unused endpoint
 app.post(
   "/documents/:document_id/stamp",
+  fetchCurrentUser,
   async (req, res, next) => {
     if (await documentByIdExists(req.params.document_id)) {
       req.documentsToStamp = await getDocumentsFromIds([
@@ -75,6 +77,7 @@ app.post(
 
 app.post(
   "/documents/stamp",
+  fetchCurrentUser,
   async (req, res, next) => {
     const { documentIds } = req.body;
     console.log(`documentIds: ${documentIds}`);
@@ -196,6 +199,7 @@ async function runJob(req, res, next) {
       );
       await updateFileMetaData(doc.file.uri, filePath);
       await addStampToResource(doc.id, stampContent);
+      await updateModifiedTimestamp(doc.uri, req.currentUser.uri);
       await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
     }
     await updateJobStatus(res.job.uri, SUCCESS);
@@ -203,6 +207,15 @@ async function runJob(req, res, next) {
     console.log(e);
     await updateJobStatus(res.job.uri, FAIL, e.message);
   }
+}
+
+async function fetchCurrentUser(req, res, next) {
+  const currentUser = await fetchCurrentUserUtil(req.headers["mu-session-id"]);
+  if (!currentUser) {
+    return res.status(404).send("Could not find user for session");
+  }
+  req.currentUser = currentUser;
+  next();
 }
 
 app.use(errorHandler);
