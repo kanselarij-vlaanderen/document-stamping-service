@@ -45,7 +45,7 @@ async function createJob () {
   return job;
 }
 
-async function updateJobStatus (uri, status) {
+async function updateJobStatus (uri, status, errorMessage) {
   const time = new Date();
   let timePred;
   if (status === SUCCESS || status === FAIL) { // final statusses
@@ -57,6 +57,7 @@ async function updateJobStatus (uri, status) {
   const queryString = `
   PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
   PREFIX cogs: <http://vocab.deri.ie/cogs#>
+  PREFIX schema: <http://schema.org/>
 
   DELETE {
       ${escapedUri} ext:status ?status ;
@@ -64,6 +65,11 @@ async function updateJobStatus (uri, status) {
   }
   INSERT {
       ${escapedUri} ext:status ${sparqlEscapeUri(status)} ;
+          ${
+            errorMessage
+              ? `schema:error ${sparqlEscapeString(errorMessage)} ;`
+              : ""
+          }
           ${sparqlEscapeUri(timePred)} ${sparqlEscapeDateTime(time)} .
   }
   WHERE {
