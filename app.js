@@ -185,23 +185,36 @@ async function sendJob(req, res, next) {
 }
 
 async function runJob(req, res, next) {
+  let shouldFail;
+  const failedDocs = [];
   try {
     for (const doc of req.documentsToStamp) {
       const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
       const stampContent = new VRDocumentName(doc.name).vrNumberWithSuffix();
-      await stampFile(
-        filePath,
-        stampContent,
-        filePath
-      );
-      await updateFileMetaData(doc.file.uri, filePath);
-      await addStampToResource(doc.id, stampContent);
-      await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
+      try {
+        await stampFile(
+          filePath,
+          stampContent,
+          filePath
+        );
+        await updateFileMetaData(doc.file.uri, filePath);
+        await addStampToResource(doc.id, stampContent);
+        await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
+      } catch (error) {
+        console.log("An error occured when trying to stamp " + stampContent);
+        console.log(error);
+        failedDocs.push(stampContent);
+        shouldFail = true;
+      }
+    }
+    if (shouldFail) {
+      throw new Error("One or more documents were not stamped");
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
     console.log(e);
-    await updateJobStatus(res.job.uri, FAIL, e.message);
+    console.log(failedDocs?.join('\n'));
+    await updateJobStatus(res.job.uri, FAIL, `${e.message}: ${failedDocs?.join(', ')}`);
   }
 }
 

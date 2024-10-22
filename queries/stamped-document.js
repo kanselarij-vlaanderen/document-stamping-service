@@ -3,14 +3,15 @@ import { parseSparqlResults } from './util';
 import { INTERN_SECRETARIE, RDF_JOB_TYPE } from '../config';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
-const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
+// const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
 
+// no status filter for job, since jobs can fail on 1 document, the other documents will still be stamped
+// the failed document will not be connected to any job and will be picked up again
 const notStampedFilter = `
 FILTER NOT EXISTS {
   ?job 
     a ${sparqlEscapeUri(RDF_JOB_TYPE)};
-    prov:used ?file ;
-    ext:status ${sparqlEscapeUri(SUCCESS)} .
+    prov:used ?file .
 }
 `;
 
