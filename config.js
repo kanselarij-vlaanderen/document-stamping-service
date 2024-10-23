@@ -7,10 +7,12 @@ const STORAGE_PATH = `/share/${MU_APPLICATION_FILE_STORAGE_PATH}`;
 
 const JSONAPI_JOB_TYPE = 'document-stamping-jobs';
 const RDF_JOB_TYPE = 'http://mu.semte.ch/vocabularies/ext/FileStampingJob';
+const INTERN_SECRETARIE = 'http://themis.vlaanderen.be/id/concept/toegangsniveau/66804c35-4652-4ff4-b927-16982a3b6de8';
 
 export {
   RESOURCE_BASE,
   STORAGE_PATH,
   JSONAPI_JOB_TYPE,
-  RDF_JOB_TYPE
+  RDF_JOB_TYPE,
+  INTERN_SECRETARIE,
 };

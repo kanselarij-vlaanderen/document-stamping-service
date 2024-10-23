@@ -1,6 +1,6 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
-import { RDF_JOB_TYPE } from '../config';
+import { INTERN_SECRETARIE, RDF_JOB_TYPE } from '../config';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
 // const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
@@ -21,9 +21,12 @@ const documentsWhere = (unstamped) => `
   ?document a dossier:Stuk ;
       dct:title ?documentName ;
       mu:uuid ?documentId ;
+      besluitvorming:vertrouwelijkheidsniveau ?accessLevel ;
       prov:value ?sourceFile .
     OPTIONAL { ?document prov:value/^prov:hadPrimarySource ?derivedFile .}
     BIND(COALESCE(?derivedFile, ?sourceFile) AS ?file)
+
+    FILTER ( ?accessLevel != ${sparqlEscapeUri(INTERN_SECRETARIE)} )
 
   ${unstamped ? notStampedFilter : ""}
 
@@ -81,11 +84,27 @@ PREFIX prov: <http://www.w3.org/ns/prov#>
 SELECT DISTINCT *
 FROM ${sparqlEscapeUri(GRAPH)}
 WHERE {
-    ?agenda a besluitvorming:Agenda ;
-        mu:uuid ${sparqlEscapeString(agendaId)} ;
-        dct:hasPart ?agendaitem .
-    ?agendaitem a besluit:Agendapunt ;
-        besluitvorming:geagendeerdStuk ?document .
+  {
+    ?agenda 
+      a besluitvorming:Agenda ;
+      mu:uuid ${sparqlEscapeString(agendaId)} ;
+      dct:hasPart ?agendaitem .
+    ?agendaitem 
+      a besluit:Agendapunt ;
+      besluitvorming:geagendeerdStuk ?document .
+  }
+  UNION
+  {
+    ?agenda 
+      a besluitvorming:Agenda ;
+      mu:uuid ${sparqlEscapeString(agendaId)} ;
+      dct:hasPart ?agendaitem .
+    ?agendaitem 
+      a besluit:Agendapunt ;
+      ^besluitvorming:genereertAgendapunt
+        /besluitvorming:vindtPlaatsTijdens
+        /ext:heeftBekrachtiging ?document .
+  }
 
   ${documentsWhere(unstamped)}
 }`;
