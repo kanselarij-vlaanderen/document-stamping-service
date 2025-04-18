@@ -23,6 +23,40 @@ import { sleep } from './lib/util';
 
 app.use(bodyParser.json());
 
+/**
+ * A wrapper for route handlers and/or middlewares to handle bubbled up exceptions
+ * 
+ * Currently, the base template uses Express v4.17 (https://github.com/mu-semtech/mu-javascript-template/blob/v1.8.0/package.json#L23)
+ * In Express v4, asynchronous route handles and middleware require you to explicitly handle
+ * errors by passing them to next().
+ * 
+ * Because this service breaks up the logic into multiple functions that it then re-uses, we
+ * would have to wrap every function in a try-catch block to handle errors. Instead, we
+ * abstract it into a wrapper.
+ * 
+ * Upgrading to Express v5 should make this wrapper superfluous.
+ * 
+ * See this link https://expressjs.com/en/guide/error-handling.html for more info on
+ * Express' error handling.
+ * 
+ * @param {Function} middleware 
+ * @returns 
+ */
+function errorHandlingWrapper(middleware) {
+  return (req, res, next) => {
+    const promise = middleware(req, res, next);
+    if (promise.catch) {
+      promise.catch((error) => {
+        console.trace(error);
+        return next({
+          message: `Something went wrong during the stamping process: ${error.message}`,
+          status: 500,
+        });
+      });
+    }
+  };
+}
+
 // TODO unused endpoint. this would stamp documents on download
 app.get("/documents/:document_id/download", async (req, res, next) => {
   if (await documentByIdExists(req.params.document_id)) {
@@ -76,7 +110,7 @@ app.post(
 
 app.post(
   "/documents/stamp",
-  async (req, res, next) => {
+  errorHandlingWrapper(async (req, res, next) => {
     const { documentIds } = req.body;
     console.log(`documentIds: ${documentIds}`);
     if (!documentIds) {
@@ -102,16 +136,16 @@ app.post(
         ],
       });
     }
-  },
-  createJob,
-  authorize,
-  sendJob,
-  runJob
+  }),
+  errorHandlingWrapper(createJob),
+  errorHandlingWrapper(authorize),
+  errorHandlingWrapper(sendJob),
+  errorHandlingWrapper(runJob)
 );
 
 app.post(
   "/agendas/:agenda_id/agendaitems/documents/stamp",
-  async (req, res, next) => {
+  errorHandlingWrapper(async (req, res, next) => {
     if (await agendaByIdExists(req.params.agenda_id)) {
       req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, true);
       next();
@@ -124,11 +158,11 @@ app.post(
         ],
       });
     }
-  },
-  createJob,
-  authorize,
-  sendJob,
-  runJob
+  }),
+  errorHandlingWrapper(createJob),
+  errorHandlingWrapper(authorize),
+  errorHandlingWrapper(sendJob),
+  errorHandlingWrapper(runJob)
 );
 
 async function createJob(req, res, next) {
