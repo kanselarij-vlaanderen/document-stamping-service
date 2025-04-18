@@ -19,6 +19,7 @@ import { agendaByIdExists } from "./queries/agenda";
 import { stampFileToBytes, stampFile } from "./lib/stamp";
 import VRDocumentName from './lib/vr-document-name';
 import { updateFileMetaData } from './queries/file';
+import { sleep } from './lib/util';
 
 app.use(bodyParser.json());
 
@@ -164,9 +165,9 @@ async function sendJob(req, res, next) {
   let payload = {};
   let message;
   if (req.documentsToStamp.length === 1) {
-    message = "1 nieuw document wordt gestempeld";
+    message = "1 nieuw document wordt gestempeld. Indien dit document ondertekend is, kan dit even duren.";
   } else {
-    message = `${req.documentsToStamp.length} nieuwe documenten worden gestempeld.`;
+    message = `${req.documentsToStamp.length} nieuwe documenten worden gestempeld. Indien er documenten ondertekend zijn, kan dit even duren.`;
   }
   payload = {
     message: message,
@@ -184,37 +185,53 @@ async function sendJob(req, res, next) {
   next();
 }
 
-async function runJob(req, res, next) {
-  let shouldFail;
-  const failedDocs = [];
-  try {
-    for (const doc of req.documentsToStamp) {
-      const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
-      const stampContent = new VRDocumentName(doc.name).vrNumberWithSuffix();
-      try {
-        await stampFile(
-          filePath,
-          stampContent,
-          filePath
-        );
-        await updateFileMetaData(doc.file.uri, filePath);
-        await addStampToResource(doc.id, stampContent);
-        await attachFileToJob(res.job.uri, doc.file.uri, doc.file.uri);
-      } catch (error) {
-        console.log("An error occured when trying to stamp " + stampContent);
-        console.log(error);
-        failedDocs.push(stampContent);
-        shouldFail = true;
-      }
+async function stampDocumentsForJob(documentsToStamp, job) {
+  const result = {
+    failedDocs: [],
+    failedStamps: []
+  };
+  for (const doc of documentsToStamp) {
+    const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
+    const stampContent = new VRDocumentName(doc.name).vrNumberWithSuffix();
+    try {
+      await stampFile(
+        filePath,
+        stampContent,
+        filePath
+      );
+      await updateFileMetaData(doc.file.uri, filePath);
+      await addStampToResource(doc.id, stampContent);
+      await attachFileToJob(job.uri, doc.file.uri, doc.file.uri);
+    } catch (error) {
+      console.log("An error occured when trying to stamp " + stampContent);
+      console.log(error);
+      result.failedDocs.push(doc);
+      result.failedStamps.push(stampContent);
     }
-    if (shouldFail) {
-      throw new Error("One or more documents were not stamped");
+  }
+  return result;
+}
+
+async function runJob(req, res, next) {
+  let failedStamps = [];
+  try {
+    let stampResult = await stampDocumentsForJob(req.documentsToStamp, res.job);
+    if (stampResult.failedDocs.length) {
+      // we can do a retry for signed documents that have been stripped in the meantime
+      console.log(`Waiting for signed pieces to be stripped.`);
+      await sleep(process.env.RETRY_TIMEOUT || 30000);
+      let retryDocs = await getDocumentsFromIds(stampResult.failedDocs.map(doc => doc.id));
+      stampResult = await stampDocumentsForJob(retryDocs, res.job);
+      if (stampResult.failedDocs.length) {
+        failedStamps = stampResult.failedStamps;
+        throw new Error("1 of meer documenten konden niet worden gestempeld");
+      }
     }
     await updateJobStatus(res.job.uri, SUCCESS);
   } catch (e) {
     console.log(e);
-    console.log(failedDocs?.join('\n'));
-    await updateJobStatus(res.job.uri, FAIL, `${e.message}: ${failedDocs?.join(', ')}`);
+    console.log(failedStamps?.join('\n'));
+    await updateJobStatus(res.job.uri, FAIL, `${e.message}: ${failedStamps?.join(', ')}`);
   }
 }
 
