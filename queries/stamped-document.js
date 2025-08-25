@@ -112,8 +112,10 @@ WHERE {
   try {
     const result = await sparqlQueryWithRetry(query, queryString);
     return parseSparqlResults(result).map(documentResultToHierarchicalObject);
-  } catch(error) {
-    throw Error (`Failed getting documents to stamp on agenda ${agendaId}. Reason: ${error.message}`)
+  } catch (error) {
+    throw new Error(
+      `Failed getting documents to stamp on agenda ${agendaId}. Reason: ${error.message}`
+    );
   }
 };
 
