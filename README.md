@@ -12,6 +12,8 @@ document-stamping:
   image: kanselarij/document-stamping-service
   volumes:
     - ./data/files:/share
+  environment:
+    MU_APPLICATION_FILE_STORAGE_PATH: 'stamped-pdfs'
 ```
 
 #### Dispatcher
@@ -39,20 +41,21 @@ Users of this service should have `:read`, `:write` and `:read-for-write` access
 
 `domain.lisp`:
 ```lisp
-(define-resource file-stamping-job ()
+(define-resource document-stamping-job ()
   :class (s-prefix "ext:FileStampingJob") ; "cogs:Job"
   :properties `((:created       :datetime  ,(s-prefix "dct:created"))
-                (:status        :uri       ,(s-prefix "ext:status"))
+                (:status        :uri       ,(s-prefix "adms:status"))
                 (:time-started  :datetime  ,(s-prefix "prov:startedAtTime"))
                 (:time-ended    :datetime  ,(s-prefix "prov:endedAtTime"))
+                (:message       :string    ,(s-prefix "schema:error"))
   )
   :has-many `((file              :via     ,(s-prefix "prov:used")
-                                 :as "generated")
-              (file              :via     ,(s-prefix "prov:used")
+                                 :as "used")
+              (file              :via     ,(s-prefix "prov:generated")
                                  :as "generated"))
-  ; :resource-base (s-url "http://example.com/id/file-stamping-jobs/")
+  :resource-base (s-url "'http://example.com/id/document-stamping-jobs/")
   :features '(include-uri)
-  :on-path "file-stamping-jobs"
+  :on-path "document-stamping-jobs"
 )
 ```
 
@@ -62,12 +65,13 @@ Users of this service should have `:read`, `:write` and `:read-for-write` access
 (add-prefix "dct" "http://purl.org/dc/terms/")
 (add-prefix "prov" "http://www.w3.org/ns/prov#")
 (add-prefix "cogs" "http://vocab.deri.ie/cogs#")
+(add-prefix "schema" "http://schema.org/")
 ```
 
 `dispatcher.ex`:
 ```elixir
-match "/file-stamping-jobs/*path", @any do
-  Proxy.forward conn, path, "http://cache/file-stamping-jobs/"
+match "/document-stamping-jobs/*path", @any do
+  Proxy.forward conn, path, "http://cache/document-stamping-jobs/"
 end
 ```
 
@@ -82,11 +86,11 @@ On successful creation of a job.
 ```json
 {
   "data": {
-    "type": "file-stamping-jobs",
+    "type": "document-stamping-jobs",
     "id": "5f680870-5984-11ea-98be-11315490e00b",
     "attributes": {
-      "uri": "http://mu.semte.ch/services/file-stamping-service/file-stamping-jobs/5f680870-5984-11ea-98be-11315490e00b",
-      "status": "http://vocab.deri.ie/cogs#Running",
+      "uri": "http://mu.semte.ch/services/document-stamping-service/file-stamping-jobs/5f680870-5984-11ea-98be-11315490e00b",
+      "status": "http://redpencil.data.gift/id/concept/JobStatus/busy",
       "created": "2020-02-27T17:12:45.943Z"
     }
   }

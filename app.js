@@ -1,7 +1,7 @@
 import { app, errorHandler } from 'mu';
 import bodyParser from 'body-parser';
 
-import { JSONAPI_JOB_TYPE } from './config';
+import { JOB } from './config';
 import {
   getDocumentsFromIds,
   getDocumentsFromAgenda,
@@ -10,8 +10,6 @@ import {
   jobExists,
   createJob as createStampingJob,
   updateJobStatus,
-  SUCCESS,
-  FAIL,
   attachFileToJob,
 } from "./queries/stamping-job";
 import { addStampToResource, documentByIdExists, documentsByIdExist } from "./queries/document";
@@ -206,7 +204,7 @@ async function sendJob(req, res, next) {
   payload = {
     message: message,
     job: {
-      type: JSONAPI_JOB_TYPE,
+      type: JOB.JSONAPI_JOB_TYPE,
       id: res.job.id,
       attributes: {
         uri: res.job.uri,
@@ -249,6 +247,7 @@ async function stampDocumentsForJob(documentsToStamp, job) {
 async function runJob(req, res, next) {
   let failedStamps = [];
   try {
+    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS);
     let stampResult = await stampDocumentsForJob(req.documentsToStamp, res.job);
     if (stampResult.failedDocs.length) {
       // we can do a retry for signed documents that have been stripped in the meantime
@@ -261,11 +260,11 @@ async function runJob(req, res, next) {
         throw new Error("1 of meer documenten konden niet worden gestempeld");
       }
     }
-    await updateJobStatus(res.job.uri, SUCCESS);
+    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS);
   } catch (e) {
     console.log(e);
     console.log(failedStamps?.join('\n'));
-    await updateJobStatus(res.job.uri, FAIL, `${e.message}: ${failedStamps?.join(', ')}`);
+    await updateJobStatus(res.job.uri, JOB.STATUSES.FAILED, `${e.message}: ${failedStamps?.join(', ')}`);
   }
 }
 
