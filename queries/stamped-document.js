@@ -1,6 +1,7 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
 import { INTERN_SECRETARIE, RDF_JOB_TYPE } from '../config';
+import { sparqlQueryWithRetry } from '../lib/util';
 
 const GRAPH = process.env.MU_APPLICATION_GRAPH || 'http://mu.semte.ch/application';
 // const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
@@ -108,8 +109,14 @@ WHERE {
 
   ${documentsWhere(unstamped)}
 }`;
-  const result = await query(queryString);
-  return parseSparqlResults(result).map(documentResultToHierarchicalObject);
+  try {
+    const result = await sparqlQueryWithRetry(query, queryString);
+    return parseSparqlResults(result).map(documentResultToHierarchicalObject);
+  } catch (error) {
+    throw new Error(
+      `Failed getting documents to stamp on agenda ${agendaId}. Reason: ${error.message}`
+    );
+  }
 };
 
 function documentResultToHierarchicalObject (r) {
