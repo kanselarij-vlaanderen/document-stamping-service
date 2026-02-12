@@ -68,6 +68,12 @@ WHERE {
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
 };
 
+/**
+ * 
+ * @param {String} agendaId 
+ * @param {Boolean} unstamped true = add filter to only have unstamped documents
+ * @returns 
+ */
 // we return only pdf's files (source or derived)
 const getDocumentsFromAgenda = async (agendaId, unstamped) => {
   const queryString = `

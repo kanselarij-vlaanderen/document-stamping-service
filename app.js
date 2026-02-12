@@ -150,8 +150,7 @@ app.post(
     if (await agendaByIdExists(req.params.agenda_id)) {
       const { shouldRestamp } = req.body;
       // default: don't restamp documents
-      const onlyUnstampedDocuments = shouldRestamp ? false : true;
-      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, onlyUnstampedDocuments);
+      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, !shouldRestamp);
       next();
     } else {
       res.status(404).send({
@@ -270,7 +269,7 @@ async function runJob(req, res, next) {
     let stampResult = await stampDocumentsForJob(req.documentsToStamp, res.job);
     if (stampResult.invalidStamps.length) {
       // we stamped these, but with possibly invalid VR numbers. Need to inform the user
-      invalidStampsMessage = `1 of meer documenten zijn gestempeld maar te controleren: ${stampResult.invalidStamps?.join(', ')}`;
+      invalidStampsMessage = `1 of meer documenten zijn gestempeld met een afwijkende VR naam, deze dienen manueel gecontroleerd te worden: ${stampResult.invalidStamps?.join(', ')}`;
       console.log(invalidStampsMessage);
     }
     if (stampResult.failedDocs.length) {
