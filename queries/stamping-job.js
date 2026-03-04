@@ -2,19 +2,13 @@ import {
   query, update, uuid as generateUuid,
   sparqlEscapeString, sparqlEscapeUri, sparqlEscapeDateTime
 } from 'mu';
-import { RESOURCE_BASE, RDF_JOB_TYPE, JSONAPI_JOB_TYPE } from '../config';
-// import { parseSparqlResults } from './util';
-
-// const SCHEDULED = 'scheduled';
-const RUNNING = 'http://vocab.deri.ie/cogs#Running';
-const SUCCESS = 'http://vocab.deri.ie/cogs#Success';
-const FAIL = 'http://vocab.deri.ie/cogs#Fail';
+import { JOB, RESOURCE_BASE } from '../config';
 
 async function jobExists (uri) {
   const queryString = `
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
   ASK {
-      ${sparqlEscapeUri(uri)} a ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
+      ${sparqlEscapeUri(uri)} a ${sparqlEscapeUri(JOB.RDF_TYPE)} ;
           mu:uuid ?uuid .
   }`;
   const results = await query(queryString);
@@ -24,21 +18,23 @@ async function jobExists (uri) {
 async function createJob () {
   const uuid = generateUuid();
   const job = {
-    uri: RESOURCE_BASE + `/${JSONAPI_JOB_TYPE}/${uuid}`,
+    uri: RESOURCE_BASE + `/${JOB.JSONAPI_JOB_TYPE}/${uuid}`,
     id: uuid,
-    status: RUNNING,
+    status: JOB.STATUSES.BUSY,
     created: new Date()
   };
   const queryString = `
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-  PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+  PREFIX adms: <http://www.w3.org/ns/adms#>
   PREFIX dct: <http://purl.org/dc/terms/>
   PREFIX cogs: <http://vocab.deri.ie/cogs#>
+  PREFIX prov: <http://www.w3.org/ns/prov#>
 
   INSERT DATA {
-      ${sparqlEscapeUri(job.uri)} a cogs:Job , ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
+      ${sparqlEscapeUri(job.uri)} a cogs:Job , ${sparqlEscapeUri(JOB.RDF_TYPE)} ;
           mu:uuid ${sparqlEscapeString(job.id)} ;
-          ext:status ${sparqlEscapeString(job.status)} ;
+          adms:status ${sparqlEscapeString(job.status)} ;
+          prov:startedAtTime ${sparqlEscapeDateTime(job.created)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
   await update(queryString);
@@ -48,23 +44,23 @@ async function createJob () {
 async function updateJobStatus (uri, status, errorMessage) {
   const time = new Date();
   let timePred;
-  if (status === SUCCESS || status === FAIL) { // final statusses
+  if (status === JOB.STATUSES.SUCCESS || status === JOB.STATUSES.FAILED) { // final statusses
     timePred = 'http://www.w3.org/ns/prov#endedAtTime';
   } else {
     timePred = 'http://www.w3.org/ns/prov#startedAtTime';
   }
   const escapedUri = sparqlEscapeUri(uri);
   const queryString = `
-  PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+  PREFIX adms: <http://www.w3.org/ns/adms#>
   PREFIX cogs: <http://vocab.deri.ie/cogs#>
   PREFIX schema: <http://schema.org/>
 
   DELETE {
-      ${escapedUri} ext:status ?status ;
+      ${escapedUri} adms:status ?status ;
           ${sparqlEscapeUri(timePred)} ?time .
   }
   INSERT {
-      ${escapedUri} ext:status ${sparqlEscapeUri(status)} ;
+      ${escapedUri} adms:status ${sparqlEscapeUri(status)} ;
           ${
             errorMessage
               ? `schema:error ${sparqlEscapeString(errorMessage)} ;`
@@ -73,8 +69,8 @@ async function updateJobStatus (uri, status, errorMessage) {
           ${sparqlEscapeUri(timePred)} ${sparqlEscapeDateTime(time)} .
   }
   WHERE {
-      ${escapedUri} a ${sparqlEscapeUri(RDF_JOB_TYPE)} .
-      OPTIONAL { ${escapedUri} ext:status ?status }
+      ${escapedUri} a ${sparqlEscapeUri(JOB.RDF_TYPE)} .
+      OPTIONAL { ${escapedUri} adms:status ?status }
       OPTIONAL { ${escapedUri} ${sparqlEscapeUri(timePred)} ?time }
   }`;
   await update(queryString);
@@ -91,7 +87,7 @@ async function attachFileToJob (job, sourceFile, resultFile) {
       ${sparqlEscapeUri(job)} prov:generated ${sparqlEscapeUri(resultFile)} .
   }
   WHERE {
-      ${sparqlEscapeUri(job)} a ${sparqlEscapeUri(RDF_JOB_TYPE)} .
+      ${sparqlEscapeUri(job)} a ${sparqlEscapeUri(JOB.RDF_TYPE)} .
       ${sparqlEscapeUri(sourceFile)} a nfo:FileDataObject .
       ${sparqlEscapeUri(resultFile)} a nfo:FileDataObject .
   }`;
@@ -104,5 +100,4 @@ export {
   createJob,
   updateJobStatus,
   attachFileToJob,
-  RUNNING, SUCCESS, FAIL
 };

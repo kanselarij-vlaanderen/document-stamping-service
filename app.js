@@ -1,7 +1,7 @@
 import { app, errorHandler } from 'mu';
 import bodyParser from 'body-parser';
 
-import { JSONAPI_JOB_TYPE } from './config';
+import { JOB } from './config';
 import {
   getDocumentsFromIds,
   getDocumentsFromAgenda,
@@ -10,8 +10,6 @@ import {
   jobExists,
   createJob as createStampingJob,
   updateJobStatus,
-  SUCCESS,
-  FAIL,
   attachFileToJob,
 } from "./queries/stamping-job";
 import { addStampToResource, documentByIdExists, documentsByIdExist } from "./queries/document";
@@ -209,7 +207,7 @@ async function sendJob(req, res, next) {
   payload = {
     message: message,
     job: {
-      type: JSONAPI_JOB_TYPE,
+      type: JOB.JSONAPI_JOB_TYPE,
       id: res.job.id,
       attributes: {
         uri: res.job.uri,
@@ -266,6 +264,7 @@ async function runJob(req, res, next) {
   let failedStamps = [];
   let invalidStampsMessage = '';
   try {
+    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS);
     let stampResult = await stampDocumentsForJob(req.documentsToStamp, res.job);
     if (stampResult.invalidStamps.length) {
       // we stamped these, but with possibly invalid VR numbers. Need to inform the user
@@ -283,13 +282,13 @@ async function runJob(req, res, next) {
         throw new Error("1 of meer documenten konden niet worden gestempeld");
       }
     }
-    await updateJobStatus(res.job.uri, SUCCESS, invalidStampsMessage);
+    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS, invalidStampsMessage);
   } catch (e) {
     console.trace(e);
     console.log(failedStamps?.join('\n'));
     let message = `${e.message}: ${failedStamps?.join(', ')}`;
     message = invalidStampsMessage ? `${message}. ${invalidStampsMessage}` : message;
-    await updateJobStatus(res.job.uri, FAIL, message);
+    await updateJobStatus(res.job.uri, JOB.STATUSES.FAILED, message);
   }
 }
 
