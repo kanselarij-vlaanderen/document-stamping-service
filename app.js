@@ -16,6 +16,7 @@ import { addStampToResource, documentByIdExists, documentsByIdExist } from "./qu
 import { agendaByIdExists } from "./queries/agenda";
 import { stampFileToBytes, stampFile } from "./lib/stamp";
 import VRDocumentName from './lib/vr-document-name';
+import VRNotulenName from './lib/vr-notulen-name';
 import { updateFileMetaData } from './queries/file';
 import { sleep } from './lib/util';
 
@@ -145,7 +146,9 @@ app.post(
   "/agendas/:agenda_id/agendaitems/documents/stamp",
   errorHandlingWrapper(async (req, res, next) => {
     if (await agendaByIdExists(req.params.agenda_id)) {
-      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, true);
+      const { shouldRestamp } = req.body;
+      // default: don't restamp documents
+      req.documentsToStamp = await getDocumentsFromAgenda(req.params.agenda_id, !shouldRestamp);
       next();
     } else {
       res.status(404).send({
@@ -220,11 +223,21 @@ async function sendJob(req, res, next) {
 async function stampDocumentsForJob(documentsToStamp, job) {
   const result = {
     failedDocs: [],
-    failedStamps: []
+    failedStamps: [],
+    invalidStamps: [],
   };
   for (const doc of documentsToStamp) {
     const filePath = doc.physFile.replace(/^share:\/\//, "/share/");
-    const stampContent = new VRDocumentName(doc.name).vrNumberWithSuffix();
+    const vrDocument = new VRDocumentName(doc.name);
+    let stampContent = vrDocument.vrNumberWithSuffix();
+    let vrNotulenDocument;
+    if (!vrDocument.isValid) {
+      // in one case (verslag) it could be a notulen document, which are valid in their own way
+      vrNotulenDocument = new VRNotulenName(doc.name);
+      if (vrNotulenDocument.isValid) {
+        stampContent = vrNotulenDocument.vrNumberWithSuffix();
+      }
+    }
     try {
       await stampFile(
         filePath,
@@ -234,6 +247,9 @@ async function stampDocumentsForJob(documentsToStamp, job) {
       await updateFileMetaData(doc.file.uri, filePath);
       await addStampToResource(doc.id, stampContent);
       await attachFileToJob(job.uri, doc.file.uri, doc.file.uri);
+      if (!vrDocument.isValid && !vrNotulenDocument?.isValid) {
+        result.invalidStamps.push(stampContent);
+      }
     } catch (error) {
       console.log("An error occured when trying to stamp " + stampContent);
       console.log(error);
@@ -246,9 +262,15 @@ async function stampDocumentsForJob(documentsToStamp, job) {
 
 async function runJob(req, res, next) {
   let failedStamps = [];
+  let invalidStampsMessage = '';
   try {
     await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS);
     let stampResult = await stampDocumentsForJob(req.documentsToStamp, res.job);
+    if (stampResult.invalidStamps.length) {
+      // we stamped these, but with possibly invalid VR numbers. Need to inform the user
+      invalidStampsMessage = `1 of meer documenten zijn gestempeld met een afwijkende VR naam, deze dienen manueel gecontroleerd te worden: ${stampResult.invalidStamps?.join(', ')}`;
+      console.log(invalidStampsMessage);
+    }
     if (stampResult.failedDocs.length) {
       // we can do a retry for signed documents that have been stripped in the meantime
       console.log(`Waiting for signed pieces to be stripped.`);
@@ -260,11 +282,13 @@ async function runJob(req, res, next) {
         throw new Error("1 of meer documenten konden niet worden gestempeld");
       }
     }
-    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS);
+    await updateJobStatus(res.job.uri, JOB.STATUSES.SUCCESS, invalidStampsMessage);
   } catch (e) {
-    console.log(e);
+    console.trace(e);
     console.log(failedStamps?.join('\n'));
-    await updateJobStatus(res.job.uri, JOB.STATUSES.FAILED, `${e.message}: ${failedStamps?.join(', ')}`);
+    let message = `${e.message}: ${failedStamps?.join(', ')}`;
+    message = invalidStampsMessage ? `${message}. ${invalidStampsMessage}` : message;
+    await updateJobStatus(res.job.uri, JOB.STATUSES.FAILED, message);
   }
 }
 

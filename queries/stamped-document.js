@@ -1,6 +1,7 @@
 import { sparqlEscapeString, sparqlEscapeUri, query, update } from 'mu';
 import { parseSparqlResults } from './util';
 import { INTERN_SECRETARIE, JOB, GRAPH } from '../config';
+import { sparqlQueryWithRetry } from '../lib/util';
 
 // no status filter for job, since jobs can fail on 1 document, the other documents will still be stamped
 // the failed document will not be connected to any job and will be picked up again
@@ -64,6 +65,12 @@ WHERE {
   return parseSparqlResults(result).map(documentResultToHierarchicalObject);
 };
 
+/**
+ * 
+ * @param {String} agendaId 
+ * @param {Boolean} unstamped true = add filter to only have unstamped documents
+ * @returns 
+ */
 // we return only pdf's files (source or derived)
 const getDocumentsFromAgenda = async (agendaId, unstamped) => {
   const queryString = `
@@ -105,8 +112,14 @@ WHERE {
 
   ${documentsWhere(unstamped)}
 }`;
-  const result = await query(queryString);
-  return parseSparqlResults(result).map(documentResultToHierarchicalObject);
+  try {
+    const result = await sparqlQueryWithRetry(query, queryString);
+    return parseSparqlResults(result).map(documentResultToHierarchicalObject);
+  } catch (error) {
+    throw new Error(
+      `Failed getting documents to stamp on agenda ${agendaId}. Reason: ${error.message}`
+    );
+  }
 };
 
 function documentResultToHierarchicalObject (r) {
